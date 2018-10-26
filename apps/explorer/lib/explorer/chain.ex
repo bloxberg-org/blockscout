@@ -218,6 +218,34 @@ defmodule Explorer.Chain do
     necessity_by_association = Keyword.get(options, :necessity_by_association, %{})
     paging_options = Keyword.get(options, :paging_options, @default_paging_options)
 
+    IO.inspect(necessity_by_association, label: "NECESSITY BY ASSOC")
+
+    #{sql,_} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, q)
+    #IO.puts("SQL ===============================")
+    #IO.puts(sql)
+
+    #transaction_matches_query =
+    #  direction
+    #  |> case do
+    #    :from -> [:from_address_hash]
+    #    :to -> [:to_address_hash, :created_contract_address_hash]
+    #    _ -> [:from_address_hash, :to_address_hash, :created_contract_address_hash]
+    #  end
+    #  |> Enum.map(fn address_field ->
+    #    q = paging_options
+    #    |> fetch_transactions()
+    #    |> Transaction.where_address_fields_match(address_hash, address_field)
+    #    |> join_associations(necessity_by_association)
+    #    |> Transaction.preload_token_transfers(address_hash)
+
+    #    qfim =
+    #      q
+    #      |> Repo.all()
+    #      |> MapSet.new()
+
+    #    qfim
+    #  end)
+
     transaction_matches =
       direction
       |> case do
@@ -225,31 +253,50 @@ defmodule Explorer.Chain do
         :to -> [:to_address_hash, :created_contract_address_hash]
         _ -> [:from_address_hash, :to_address_hash, :created_contract_address_hash]
       end
-      |> Enum.map(fn address_field ->
-        paging_options
-        |> fetch_transactions()
-        |> Transaction.where_address_fields_match(address_hash, address_field)
-        |> join_associations(necessity_by_association)
-        |> Transaction.preload_token_transfers(address_hash)
-        |> Repo.all()
-        |> MapSet.new()
+      |> Enum.reduce(fetch_transactions(paging_options), fn address_field, query ->
+        Transaction.or_where_address_fields_match(query, address_hash, address_field)
       end)
-
-    token_transfer_matches =
-      paging_options
-      |> fetch_transactions()
-      |> TokenTransfer.where_address_fields_match(address_hash, direction)
       |> join_associations(necessity_by_association)
       |> Transaction.preload_token_transfers(address_hash)
+      |> preload([{:token_transfers, [:token, :from_address, :to_address]}])
+      |> inspect_query()
       |> Repo.all()
       |> MapSet.new()
 
+      # token_transfer_matches =
+      #   paging_options
+      #   |> fetch_transactions()
+      #   |> TokenTransfer.where_address_fields_match(address_hash, direction)
+      #   |> join_associations(necessity_by_association)
+      #   |> Transaction.preload_token_transfers(address_hash)
+
+      # #IO.inspect(token_transfer_matches, label: "BEFORE SQL 4 =================")
+      # #{sql, _args} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, token_transfer_matches)
+      # #IO.puts("SQL ===============================")
+      # #IO.puts(sql)
+
+      # token_transfer_matches_2 =
+      #   token_transfer_matches
+      #   |> Repo.all()
+      #   |> MapSet.new()
+
+      #   #{sql,_} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, token_transfer_matches)
+      #   #IO.puts("SQL ===============================")
+      #   #IO.puts(sql)
+
     transaction_matches
-    |> Enum.reduce(token_transfer_matches, &MapSet.union/2)
+    #|> Enum.reduce(token_transfer_matches_2, &MapSet.union/2)
     |> MapSet.to_list()
     |> Enum.sort_by(& &1.index, &>=/2)
     |> Enum.sort_by(& &1.block_number, &>=/2)
     |> Enum.slice(0..paging_options.page_size)
+  end
+
+  defp inspect_query(query, label \\ "==================SQL==================") do
+    {sql, _args} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, query)
+    IO.puts(label)
+    IO.puts(sql)
+    query
   end
 
   @doc """
