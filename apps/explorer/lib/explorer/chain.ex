@@ -218,13 +218,13 @@ defmodule Explorer.Chain do
     necessity_by_association = Keyword.get(options, :necessity_by_association, %{})
     paging_options = Keyword.get(options, :paging_options, @default_paging_options)
 
-    IO.inspect(necessity_by_association, label: "NECESSITY BY ASSOC")
+    # IO.inspect(necessity_by_association, label: "NECESSITY BY ASSOC")
 
-    #{sql,_} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, q)
-    #IO.puts("SQL ===============================")
-    #IO.puts(sql)
+    # {sql,_} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, q)
+    # IO.puts("SQL ===============================")
+    # IO.puts(sql)
 
-    #transaction_matches_query =
+    # transaction_matches_query =
     #  direction
     #  |> case do
     #    :from -> [:from_address_hash]
@@ -259,45 +259,45 @@ defmodule Explorer.Chain do
       |> join_associations(necessity_by_association)
       |> Transaction.preload_token_transfers(address_hash)
       |> preload([{:token_transfers, [:token, :from_address, :to_address]}])
-      |> inspect_query()
+      # |> inspect_query()
       |> Repo.all()
       |> MapSet.new()
 
-      # token_transfer_matches =
-      #   paging_options
-      #   |> fetch_transactions()
-      #   |> TokenTransfer.where_address_fields_match(address_hash, direction)
-      #   |> join_associations(necessity_by_association)
-      #   |> Transaction.preload_token_transfers(address_hash)
+    token_transfer_matches =
+      paging_options
+      |> fetch_transactions()
+      |> TokenTransfer.where_address_fields_match(address_hash, direction)
+      |> join_associations(necessity_by_association)
+      |> Transaction.preload_token_transfers(address_hash)
 
-      # #IO.inspect(token_transfer_matches, label: "BEFORE SQL 4 =================")
-      # #{sql, _args} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, token_transfer_matches)
-      # #IO.puts("SQL ===============================")
-      # #IO.puts(sql)
+    # IO.inspect(token_transfer_matches, label: "BEFORE SQL 4 =================")
+    # {sql, _args} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, token_transfer_matches)
+    # IO.puts("SQL ===============================")
+    # IO.puts(sql)
 
-      # token_transfer_matches_2 =
-      #   token_transfer_matches
-      #   |> Repo.all()
-      #   |> MapSet.new()
+    token_transfer_matches_2 =
+      token_transfer_matches
+      |> Repo.all()
+      |> MapSet.new()
 
-      #   #{sql,_} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, token_transfer_matches)
-      #   #IO.puts("SQL ===============================")
-      #   #IO.puts(sql)
+    #   #{sql,_} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, token_transfer_matches)
+    #   #IO.puts("SQL ===============================")
+    #   #IO.puts(sql)
 
     transaction_matches
-    #|> Enum.reduce(token_transfer_matches_2, &MapSet.union/2)
+    |> Enum.reduce(token_transfer_matches_2, &MapSet.union/2)
     |> MapSet.to_list()
     |> Enum.sort_by(& &1.index, &>=/2)
     |> Enum.sort_by(& &1.block_number, &>=/2)
     |> Enum.slice(0..paging_options.page_size)
   end
 
-  defp inspect_query(query, label \\ "==================SQL==================") do
-    {sql, _args} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, query)
-    IO.puts(label)
-    IO.puts(sql)
-    query
-  end
+  # defp inspect_query(query, label \\ "==================SQL==================") do
+  #   {sql, _args} = Ecto.Adapters.SQL.to_sql(:all, Explorer.Repo, query)
+  #   IO.puts(label)
+  #   IO.puts(sql)
+  #   query
+  # end
 
   @doc """
   Finds all `t:Explorer.Chain.Transaction.t/0`s given the address_hash and the token contract
