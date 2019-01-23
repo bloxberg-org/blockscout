@@ -7,7 +7,7 @@ import { exchangeRateChannel, formatUsdValue } from '../lib/currency'
 import { createStore, connectElements } from '../lib/redux_helpers.js'
 import { batchChannel } from '../lib/utils'
 import listMorph from '../lib/list_morph'
-import { createMarketHistoryChart } from '../lib/market_history_chart'
+//import { createMarketHistoryChart } from '../lib/market_history_chart'
 
 const BATCH_THRESHOLD = 6
 
@@ -134,15 +134,15 @@ function withMissingBlocks (reducer) {
 
 let chart
 const elements = {
-  '[data-chart="marketHistoryChart"]': {
-    load ($el) {
-      chart = createMarketHistoryChart($el[0])
-    },
-    render ($el, state, oldState) {
-      if (!chart || (oldState.availableSupply === state.availableSupply && oldState.marketHistoryData === state.marketHistoryData)) return
-      chart.update(state.availableSupply, state.marketHistoryData)
-    }
-  },
+  //'[data-chart="marketHistoryChart"]': {
+    //load ($el) {
+      //chart = createMarketHistoryChart($el[0])
+    //},
+    //render ($el, state, oldState) {
+      //if (!chart || (oldState.availableSupply === state.availableSupply && oldState.marketHistoryData === state.marketHistoryData)) return
+      //chart.update(state.availableSupply, state.marketHistoryData)
+    //}
+  //},
   '[data-selector="transaction-count"]': {
     load ($el) {
       return { transactionCount: numeral($el.text()).value() }

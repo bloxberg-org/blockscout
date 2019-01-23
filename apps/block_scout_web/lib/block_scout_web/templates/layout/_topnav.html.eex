@@ -1,6 +1,6 @@
 <nav class="navbar navbar-dark navbar-expand-lg navbar-primary" data-selector="navbar">
   <div class="container">
-    <%= link to: chain_path(@conn, :show), class: "navbar-brand", "data-test": "header_logo" do %>
+    <%= link to: 'https://bloxberg.org', class: "navbar-brand", "data-test": "header_logo" do %>
       <img class="navbar-logo" src="<%= logo() %>" />
     <% end %>
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="<%= gettext("Toggle navigation") %>">
@@ -100,12 +100,14 @@
               <!-- <span class="nav-link-icon">
                 <%= render BlockScoutWeb.IconsView, "_test_network_icon.html" %>
               </span> -->
-              <%= subnetwork_title() %>
+              <%= gettext "bloxberg Network" %>
             </a>
             <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-              <a class="dropdown-item" href="https://sokol.blockscout.com/"><%= gettext("POA Sokol") %></a>
-              <a class="dropdown-item" href="https://poa.blockscout.com/"><%= gettext("POA Core") %></a>
-            </div>
+             <a class="dropdown-item" href="https://blockexplorer.bloxberg.org/"><%= gettext("Blockexplorer Home") %></a>
+              <a class="dropdown-item" href="https://bloxberg.org/faucet"><%= gettext("bloxberg Faucet") %></a>
+              <a class="dropdown-item" href="https://bloxberg.org/cert/certify"><%= gettext("bloxberg Certify & Verify") %></a>
+
+		</div>
           </li>
         </ul>
       </div>
