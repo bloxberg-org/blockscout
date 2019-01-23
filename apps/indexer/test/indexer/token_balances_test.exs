@@ -45,28 +45,22 @@ defmodule Indexer.TokenBalancesTest do
              } = List.first(result)
     end
 
-    test "does not ignore calls that were returned with error" do
-      address = insert(:address)
+    test "ignores calls that gave errors to try fetch they again later" do
+      address = insert(:address, hash: "0x7113ffcb9c18a97da1b9cfc43e6cb44ed9165509")
       token = insert(:token, contract_address: build(:contract_address))
-      address_hash_string = Hash.to_string(address.hash)
 
-      data = %{
-        token_contract_address_hash: token.contract_address_hash,
-        address_hash: address_hash_string,
-        block_number: 1_000
-      }
+      token_balances = [
+        %{
+          address_hash: to_string(address.hash),
+          block_number: 1_000,
+          token_contract_address_hash: to_string(token.contract_address_hash),
+          retries_count: 1
+        }
+      ]
 
       get_balance_from_blockchain_with_error()
 
-      {:ok, result} = TokenBalances.fetch_token_balances_from_blockchain([data])
-
-      assert %{
-               value: nil,
-               token_contract_address_hash: token_contract_address_hash,
-               address_hash: address_hash,
-               block_number: 1_000,
-               value_fetched_at: nil
-             } = List.first(result)
+      assert TokenBalances.fetch_token_balances_from_blockchain(token_balances) == {:ok, []}
     end
 
     test "ignores results that raised :timeout" do
@@ -78,19 +72,21 @@ defmodule Indexer.TokenBalancesTest do
         %{
           token_contract_address_hash: Hash.to_string(token.contract_address_hash),
           address_hash: address_hash_string,
-          block_number: 1_000
+          block_number: 1_000,
+          retries_count: 1
         },
         %{
           token_contract_address_hash: Hash.to_string(token.contract_address_hash),
           address_hash: address_hash_string,
-          block_number: 1_001
+          block_number: 1_001,
+          retries_count: 1
         }
       ]
 
       get_balance_from_blockchain()
-      get_balance_from_blockchain_with_timeout()
+      get_balance_from_blockchain_with_timeout(200)
 
-      {:ok, result} = TokenBalances.fetch_token_balances_from_blockchain(token_balance_params)
+      {:ok, result} = TokenBalances.fetch_token_balances_from_blockchain(token_balance_params, timeout: 100)
 
       assert length(result) == 1
     end
@@ -100,31 +96,28 @@ defmodule Indexer.TokenBalancesTest do
     test "logs the given from argument in final message" do
       token_balance_params_with_error = Map.put(build(:token_balance), :error, "Error")
       params = [token_balance_params_with_error]
-      from = "Tests"
 
       log_message_response =
         capture_log(fn ->
-          TokenBalances.log_fetching_errors(from, params)
+          TokenBalances.log_fetching_errors(params)
         end)
 
-      assert log_message_response =~ "<Tests"
+      assert log_message_response =~ "Error"
     end
 
     test "log when there is a token_balance param with errors" do
-      from = "Tests"
-      token_balance_params_with_error = Map.put(build(:token_balance), :error, "Error")
+      token_balance_params_with_error = Map.merge(build(:token_balance), %{error: "Error", retries_count: 1})
       params = [token_balance_params_with_error]
 
       log_message_response =
         capture_log(fn ->
-          TokenBalances.log_fetching_errors(from, params)
+          TokenBalances.log_fetching_errors(params)
         end)
 
       assert log_message_response =~ "Error"
     end
 
     test "log multiple token balances params with errors" do
-      from = "Tests"
       error_1 = "Error"
       error_2 = "BadGateway"
 
@@ -135,7 +128,7 @@ defmodule Indexer.TokenBalancesTest do
 
       log_message_response =
         capture_log(fn ->
-          TokenBalances.log_fetching_errors(from, params)
+          TokenBalances.log_fetching_errors(params)
         end)
 
       assert log_message_response =~ error_1
@@ -143,13 +136,12 @@ defmodule Indexer.TokenBalancesTest do
     end
 
     test "doesn't log when there aren't errors after fetching token balances" do
-      from = "Tests"
       token_balance_params = Map.put(build(:token_balance), :error, nil)
       params = [token_balance_params]
 
       log_message_response =
         capture_log(fn ->
-          TokenBalances.log_fetching_errors(from, params)
+          TokenBalances.log_fetching_errors(params)
         end)
 
       assert log_message_response == ""
@@ -176,9 +168,8 @@ defmodule Indexer.TokenBalancesTest do
 
       token_balances = MapSet.new([token_balance_a, token_balance_b])
       fetched_token_balances = MapSet.new([token_balance_a])
-      unfetched_token_balances = MapSet.new([token_balance_b])
 
-      assert TokenBalances.unfetched_token_balances(token_balances, fetched_token_balances) == unfetched_token_balances
+      assert TokenBalances.unfetched_token_balances(token_balances, fetched_token_balances) == [token_balance_b]
     end
   end
 
@@ -199,12 +190,21 @@ defmodule Indexer.TokenBalancesTest do
     )
   end
 
-  defp get_balance_from_blockchain_with_timeout() do
+  defp get_balance_from_blockchain_with_timeout(timeout) do
     expect(
       EthereumJSONRPC.Mox,
       :json_rpc,
       fn [%{id: _, method: _, params: [%{data: _, to: _}, _]}], _options ->
-        :timer.sleep(5001)
+        :timer.sleep(timeout)
+
+        {:ok,
+         [
+           %{
+             id: "balanceOf",
+             jsonrpc: "2.0",
+             result: "0x00000000000000000000000000000000000000000000d3c21bcecceda1000000"
+           }
+         ]}
       end
     )
   end

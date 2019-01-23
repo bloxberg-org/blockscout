@@ -7,7 +7,7 @@ defmodule Indexer.Block.Catchup.BoundIntervalSupervisorTest do
   import EthereumJSONRPC, only: [integer_to_quantity: 1]
 
   alias Explorer.Chain.Block
-  alias Indexer.{BoundInterval, CoinBalance, InternalTransaction, Token, TokenBalance}
+  alias Indexer.{BoundInterval, Code, CoinBalance, InternalTransaction, Token, TokenBalance}
   alias Indexer.Block.{Catchup, Uncle}
 
   @moduletag capture_log: true
@@ -22,6 +22,8 @@ defmodule Indexer.Block.Catchup.BoundIntervalSupervisorTest do
     # See https://github.com/poanetwork/blockscout/issues/597
     @tag :no_geth
     test "starts fetching blocks from latest and goes down", %{json_rpc_named_arguments: json_rpc_named_arguments} do
+      Logger.configure(truncate: :infinity)
+
       if json_rpc_named_arguments[:transport] == EthereumJSONRPC.Mox do
         case Keyword.fetch!(json_rpc_named_arguments, :variant) do
           EthereumJSONRPC.Parity ->
@@ -63,8 +65,8 @@ defmodule Indexer.Block.Catchup.BoundIntervalSupervisorTest do
                    "uncles" => []
                  }}
 
-              %{method: "trace_block"}, _options ->
-                {:ok, []}
+              [%{method: "trace_block"} | _] = requests, _options ->
+                {:ok, Enum.map(requests, fn %{id: id} -> %{id: id, result: []} end)}
 
               [%{method: "eth_getBlockByNumber", params: [_, true]} | _] = requests, _options ->
                 {:ok,
@@ -202,6 +204,7 @@ defmodule Indexer.Block.Catchup.BoundIntervalSupervisorTest do
 
       CoinBalance.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
       InternalTransaction.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
+      Code.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
       Token.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
       TokenBalance.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
 
@@ -406,6 +409,7 @@ defmodule Indexer.Block.Catchup.BoundIntervalSupervisorTest do
 
       start_supervised!({Task.Supervisor, name: Indexer.Block.Catchup.TaskSupervisor})
       CoinBalance.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
+      Code.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
       InternalTransaction.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
       Token.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
       TokenBalance.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
@@ -448,20 +452,26 @@ defmodule Indexer.Block.Catchup.BoundIntervalSupervisorTest do
              jsonrpc: "2.0",
              result: %{
                "difficulty" => "0x0",
+               "extraData" => "0x0",
                "gasLimit" => "0x0",
                "gasUsed" => "0x0",
                "hash" =>
                  Explorer.Factory.block_hash()
                  |> to_string(),
+               "logsBloom" => "0x0",
                "miner" => "0xb2930b35844a230f00e51431acae96fe543a0347",
                "number" => "0x0",
                "parentHash" =>
                  Explorer.Factory.block_hash()
                  |> to_string(),
+               "receiptsRoot" => "0x0",
+               "sha3Uncles" => "0x0",
                "size" => "0x0",
+               "stateRoot" => "0x0",
                "timestamp" => "0x0",
                "totalDifficulty" => "0x0",
                "transactions" => [],
+               "transactionsRoot" => "0x0",
                "uncles" => []
              }
            }
@@ -470,8 +480,8 @@ defmodule Indexer.Block.Catchup.BoundIntervalSupervisorTest do
       |> (fn mock ->
             case Keyword.fetch!(json_rpc_named_arguments, :variant) do
               EthereumJSONRPC.Parity ->
-                expect(mock, :json_rpc, fn %{method: "trace_block"}, _options ->
-                  {:ok, []}
+                expect(mock, :json_rpc, fn [%{method: "trace_block"} | _] = requests, _options ->
+                  {:ok, Enum.map(requests, fn %{id: id} -> %{id: id, result: []} end)}
                 end)
 
               _ ->
@@ -492,6 +502,7 @@ defmodule Indexer.Block.Catchup.BoundIntervalSupervisorTest do
       start_supervised({Task.Supervisor, name: Indexer.Block.Catchup.TaskSupervisor})
       CoinBalance.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
       InternalTransaction.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
+      Code.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
       Token.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
       TokenBalance.Supervisor.Case.start_supervised!(json_rpc_named_arguments: json_rpc_named_arguments)
 

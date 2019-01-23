@@ -77,6 +77,12 @@ defmodule Indexer.AddressExtraction do
         %{from: :created_contract_code, to: :contract_code}
       ]
     ],
+    codes: [
+      [
+        %{from: :code, to: :contract_code},
+        %{from: :address, to: :hash}
+      ]
+    ],
     transactions: [
       [
         %{from: :block_number, to: :fetched_coin_balance_block_number},
@@ -84,7 +90,8 @@ defmodule Indexer.AddressExtraction do
       ],
       [
         %{from: :block_number, to: :fetched_coin_balance_block_number},
-        %{from: :from_address_hash, to: :hash}
+        %{from: :from_address_hash, to: :hash},
+        %{from: :nonce, to: :nonce}
       ],
       [
         %{from: :block_number, to: :fetched_coin_balance_block_number},
@@ -136,6 +143,7 @@ defmodule Indexer.AddressExtraction do
           required(:hash) => String.t(),
           required(:fetched_coin_balance_block_number) => non_neg_integer(),
           optional(:fetched_coin_balance) => non_neg_integer(),
+          optional(:nonce) => non_neg_integer(),
           optional(:contract_code) => String.t()
         }
 
@@ -209,11 +217,13 @@ defmodule Indexer.AddressExtraction do
       ...>       %{
       ...>         block_number: 1,
       ...>         from_address_hash: "0x0000000000000000000000000000000000000001",
-      ...>         to_address_hash: "0x0000000000000000000000000000000000000002"
+      ...>         to_address_hash: "0x0000000000000000000000000000000000000002",
+      ...>         nonce: 3
       ...>       },
       ...>       %{
       ...>         block_number: 2,
-      ...>         from_address_hash: "0x0000000000000000000000000000000000000003"
+      ...>         from_address_hash: "0x0000000000000000000000000000000000000003",
+      ...>         nonce: 4
       ...>       }
       ...>     ]
       ...>   }
@@ -221,7 +231,8 @@ defmodule Indexer.AddressExtraction do
       [
         %{
           fetched_coin_balance_block_number: 1,
-          hash: "0x0000000000000000000000000000000000000001"
+          hash: "0x0000000000000000000000000000000000000001",
+          nonce: 3
         },
         %{
           fetched_coin_balance_block_number: 1,
@@ -229,7 +240,8 @@ defmodule Indexer.AddressExtraction do
         },
         %{
           fetched_coin_balance_block_number: 2,
-          hash: "0x0000000000000000000000000000000000000003"
+          hash: "0x0000000000000000000000000000000000000003",
+          nonce: 4
         }
       ]
 
@@ -279,11 +291,13 @@ defmodule Indexer.AddressExtraction do
       ...>     transactions: [
       ...>       %{
       ...>         block_number: 3,
-      ...>         to_address_hash: "0x0000000000000000000000000000000000000001"
+      ...>         to_address_hash: "0x0000000000000000000000000000000000000001",
+      ...>         nonce: 5
       ...>       },
       ...>       %{
       ...>         block_number: 2,
-      ...>         from_address_hash: "0x0000000000000000000000000000000000000001"
+      ...>         from_address_hash: "0x0000000000000000000000000000000000000001",
+      ...>         nonce: 4
       ...>       }
       ...>     ],
       ...>     logs: [
@@ -297,7 +311,8 @@ defmodule Indexer.AddressExtraction do
       [
         %{
           fetched_coin_balance_block_number: 7,
-          hash: "0x0000000000000000000000000000000000000001"
+          hash: "0x0000000000000000000000000000000000000001",
+          nonce: 4
         }
       ]
 
@@ -316,11 +331,13 @@ defmodule Indexer.AddressExtraction do
       ...>     transactions: [
       ...>       %{
       ...>         block_number: 2,
-      ...>         from_address_hash: "0x0000000000000000000000000000000000000001"
+      ...>         from_address_hash: "0x0000000000000000000000000000000000000001",
+      ...>         nonce: 4
       ...>       },
       ...>       %{
       ...>         block_number: 3,
-      ...>         to_address_hash: "0x0000000000000000000000000000000000000001"
+      ...>         to_address_hash: "0x0000000000000000000000000000000000000001",
+      ...>         nonce: 5
       ...>       }
       ...>     ]
       ...>   }
@@ -329,7 +346,8 @@ defmodule Indexer.AddressExtraction do
         %{
           contract_code: "0x",
           fetched_coin_balance_block_number: 3,
-          hash: "0x0000000000000000000000000000000000000001"
+          hash: "0x0000000000000000000000000000000000000001",
+          nonce: 4
         }
       ]
 
@@ -362,10 +380,18 @@ defmodule Indexer.AddressExtraction do
               optional(:created_contract_code) => String.t()
             }
           ],
+          optional(:codes) => [
+            %{
+              required(:code) => String.t(),
+              required(:address) => String.t(),
+              required(:block_number) => non_neg_integer
+            }
+          ],
           optional(:transactions) => [
             %{
               required(:block_number) => non_neg_integer(),
               required(:from_address_hash) => String.t(),
+              required(:nonce) => non_neg_integer(),
               optional(:to_address_hash) => String.t(),
               optional(:created_contract_address_hash) => String.t()
             }
@@ -445,38 +471,42 @@ defmodule Indexer.AddressExtraction do
 
   # Ensure that when `:addresses` or `:address_coin_balances` are present, their :fetched_coin_balance will win
   defp merge_addresses(%{hash: hash} = first, %{hash: hash} = second) do
-    case {first[:fetched_coin_balance], second[:fetched_coin_balance]} do
-      {nil, nil} ->
-        first
-        |> Map.merge(second)
-        |> Map.put(
-          :fetched_coin_balance_block_number,
-          max_nil_last(
-            Map.get(first, :fetched_coin_balance_block_number),
-            Map.get(second, :fetched_coin_balance_block_number)
+    merged_addresses =
+      case {first[:fetched_coin_balance], second[:fetched_coin_balance]} do
+        {nil, nil} ->
+          first
+          |> Map.merge(second)
+          |> Map.put(
+            :fetched_coin_balance_block_number,
+            max_nil_last(
+              Map.get(first, :fetched_coin_balance_block_number),
+              Map.get(second, :fetched_coin_balance_block_number)
+            )
           )
-        )
 
-      {nil, _} ->
-        # merge in `second` so its balance and block_number wins
-        Map.merge(first, second)
-
-      {_, nil} ->
-        # merge in `first` so its balance and block_number wins
-        Map.merge(second, first)
-
-      {_, _} ->
-        if greater_than_nil_last(
-             Map.get(first, :fetched_coin_balance_block_number),
-             Map.get(second, :fetched_coin_balance_block_number)
-           ) do
-          # merge in `first` so its block number wins
-          Map.merge(second, first)
-        else
-          # merge in `second` so its block number wins
+        {nil, _} ->
+          # merge in `second` so its balance and block_number wins
           Map.merge(first, second)
-        end
-    end
+
+        {_, nil} ->
+          # merge in `first` so its balance and block_number wins
+          Map.merge(second, first)
+
+        {_, _} ->
+          if greater_than_nil_last(
+               Map.get(first, :fetched_coin_balance_block_number),
+               Map.get(second, :fetched_coin_balance_block_number)
+             ) do
+            # merge in `first` so its block number wins
+            Map.merge(second, first)
+          else
+            # merge in `second` so its block number wins
+            Map.merge(first, second)
+          end
+      end
+
+    merged_addresses
+    |> Map.put(:nonce, max_nil_last(first[:nonce], second[:nonce]))
   end
 
   # `nil > 5 == true`, but we want numbers instead

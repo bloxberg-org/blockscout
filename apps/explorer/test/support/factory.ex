@@ -9,10 +9,11 @@ defmodule Explorer.Factory do
   alias Comeonin.Bcrypt
   alias Explorer.Accounts.{User, UserContact}
   alias Explorer.Admin.Administrator
-  alias Explorer.Chain.Block.{Range, Reward}
+  alias Explorer.Chain.Block.{EmissionReward, Range, Reward}
 
   alias Explorer.Chain.{
     Address,
+    Address.CurrentTokenBalance,
     Address.TokenBalance,
     Address.CoinBalance,
     Block,
@@ -91,6 +92,26 @@ defmodule Explorer.Factory do
           }
       }
       """,
+      abi: [
+        %{
+          "constant" => false,
+          "inputs" => [%{"name" => "x", "type" => "uint256"}],
+          "name" => "set",
+          "outputs" => [],
+          "payable" => false,
+          "stateMutability" => "nonpayable",
+          "type" => "function"
+        },
+        %{
+          "constant" => true,
+          "inputs" => [],
+          "name" => "get",
+          "outputs" => [%{"name" => "", "type" => "uint256"}],
+          "payable" => false,
+          "stateMutability" => "view",
+          "type" => "function"
+        }
+      ],
       version: "v0.4.24+commit.e67f0147",
       optimized: false
     }
@@ -155,7 +176,9 @@ defmodule Explorer.Factory do
     with_block(transaction, block, [])
   end
 
-  def with_block(transactions, %Block{} = block) when is_list(transactions) do
+  # The `transaction.block` must be consensus.  Non-consensus blocks can only be associated with the
+  # `transaction_forks`.
+  def with_block(transactions, %Block{consensus: true} = block) when is_list(transactions) do
     Enum.map(transactions, &with_block(&1, block))
   end
 
@@ -166,7 +189,9 @@ defmodule Explorer.Factory do
 
   def with_block(
         %Transaction{index: nil} = transaction,
-        %Block{hash: block_hash, number: block_number},
+        # The `transaction.block` must be consensus.  Non-consensus blocks can only be associated with the
+        # `transaction_forks`.
+        %Block{consensus: true, hash: block_hash, number: block_number},
         collated_params
       )
       when is_list(collated_params) do
@@ -248,7 +273,8 @@ defmodule Explorer.Factory do
       call_type: :delegatecall,
       gas: gas,
       gas_used: gas_used,
-      output: %Data{bytes: <<1>>},
+      input: %Data{bytes: <<1>>},
+      output: %Data{bytes: <<2>>},
       # caller MUST supply `index`
       trace_address: [],
       # caller MUST supply `transaction` because it can't be built lazily to allow overrides without creating an extra
@@ -280,13 +306,13 @@ defmodule Explorer.Factory do
     }
   end
 
-  def internal_transaction_suicide_factory() do
+  def internal_transaction_selfdestruct_factory() do
     %InternalTransaction{
       from_address: build(:address),
       trace_address: [],
       # caller MUST supply `transaction` because it can't be built lazily to allow overrides without creating an extra
       # transaction
-      type: :suicide,
+      type: :selfdestruct,
       value: sequence("internal_transaction_value", &Decimal.new(&1))
     }
   end
@@ -365,6 +391,7 @@ defmodule Explorer.Factory do
 
     %TokenTransfer{
       amount: Decimal.new(1),
+      block_number: block_number(),
       from_address: from_address,
       to_address: to_address,
       token_contract_address: token_address,
@@ -381,7 +408,7 @@ defmodule Explorer.Factory do
     }
   end
 
-  def block_reward_factory do
+  def emission_reward_factory do
     # Generate ranges like 1 - 10,000; 10,001 - 20,000, 20,001 - 30,000; etc
     x = sequence("block_range", & &1)
     lower = x * Kernel.+(10_000, 1)
@@ -396,9 +423,18 @@ defmodule Explorer.Factory do
 
     reward = Decimal.mult(reward_multiplier, wei_per_ether)
 
-    %Reward{
+    %EmissionReward{
       block_range: %Range{from: lower, to: upper},
       reward: reward
+    }
+  end
+
+  def reward_factory do
+    %Reward{
+      address_hash: build(:address).hash,
+      address_type: :validator,
+      block_hash: build(:block).hash,
+      reward: Decimal.new(3)
     }
   end
 
@@ -416,6 +452,23 @@ defmodule Explorer.Factory do
       v: Enum.random(27..30),
       value: Enum.random(1..100_000)
     }
+  end
+
+  def transaction_to_verified_contract_factory do
+    smart_contract = build(:smart_contract)
+
+    address = %Address{
+      hash: address_hash(),
+      contract_code: contract_code_info().bytecode,
+      smart_contract: smart_contract
+    }
+
+    input_data =
+      "set(uint)"
+      |> ABI.encode([50])
+      |> Base.encode16(case: :lower)
+
+    build(:transaction, to_address: address, input: "0x" <> input_data)
   end
 
   def transaction_hash do
@@ -440,33 +493,15 @@ defmodule Explorer.Factory do
   end
 
   def smart_contract_factory() do
+    contract_code_info = contract_code_info()
+
     %SmartContract{
       address_hash: insert(:address).hash,
-      compiler_version: "0.4.24",
-      name: "SimpleStorage",
-      contract_source_code:
-        "pragma solidity ^0.4.24; contract SimpleStorage {uint storedData; function set(uint x) public {storedData = x; } function get() public constant returns (uint) {return storedData; } }",
-      optimization: false,
-      abi: [
-        %{
-          "constant" => false,
-          "inputs" => [%{"name" => "x", "type" => "uint256"}],
-          "name" => "set",
-          "outputs" => [],
-          "payable" => false,
-          "stateMutability" => "nonpayable",
-          "type" => "function"
-        },
-        %{
-          "constant" => true,
-          "inputs" => [],
-          "name" => "get",
-          "outputs" => [%{"name" => "", "type" => "uint256"}],
-          "payable" => false,
-          "stateMutability" => "view",
-          "type" => "function"
-        }
-      ]
+      compiler_version: contract_code_info.version,
+      name: contract_code_info.name,
+      contract_source_code: contract_code_info.source_code,
+      optimization: contract_code_info.optimized,
+      abi: contract_code_info.abi
     }
   end
 
@@ -480,16 +515,14 @@ defmodule Explorer.Factory do
     }
   end
 
-  defmacrop left + right do
-    quote do
-      fragment("? + ?", unquote(left), unquote(right))
-    end
-  end
-
-  defmacrop coalesce(left, right) do
-    quote do
-      fragment("coalesce(?, ?)", unquote(left), unquote(right))
-    end
+  def address_current_token_balance_factory() do
+    %CurrentTokenBalance{
+      address: build(:address),
+      token_contract_address_hash: insert(:token).contract_address_hash,
+      block_number: block_number(),
+      value: Enum.random(1..100_000),
+      value_fetched_at: DateTime.utc_now()
+    }
   end
 
   defp block_hash_to_next_transaction_index(block_hash) do

@@ -38,17 +38,35 @@ defmodule BlockScoutWeb.Router do
     })
   end
 
-  forward("/graphql", Absinthe.Plug, schema: BlockScoutWeb.Schema)
+  # Needs to be 200 to support the schema introspection for graphiql
+  @max_complexity 200
+
+  forward("/graphql", Absinthe.Plug,
+    schema: BlockScoutWeb.Schema,
+    analyze_complexity: true,
+    max_complexity: @max_complexity
+  )
 
   forward("/graphiql", Absinthe.Plug.GraphiQL,
     schema: BlockScoutWeb.Schema,
-    interface: :playground
+    interface: :playground,
+    socket: BlockScoutWeb.UserSocket,
+    analyze_complexity: true,
+    max_complexity: @max_complexity
   )
 
+  # Disallows Iframes (write routes)
   scope "/", BlockScoutWeb do
     pipe_through(:browser)
+  end
+
+  # Allows Iframes (read-only routes)
+  scope "/", BlockScoutWeb do
+    pipe_through([:browser, BlockScoutWeb.Plug.AllowIframe])
 
     resources("/", ChainController, only: [:show], singleton: true, as: :chain)
+
+    resources("/market_history_chart", Chain.MarketHistoryChartController, only: [:show], singleton: true)
 
     resources "/blocks", BlockController, only: [:index, :show], param: "hash_or_number" do
       resources("/transactions", BlockTransactionController, only: [:index], as: :transaction)
@@ -59,6 +77,8 @@ defmodule BlockScoutWeb.Router do
     get("/uncles", BlockController, :uncle, as: :uncle)
 
     resources("/pending_transactions", PendingTransactionController, only: [:index])
+
+    resources("/recent_transactions", RecentTransactionsController, only: [:index])
 
     get("/txs", TransactionController, :index)
 
@@ -133,6 +153,20 @@ defmodule BlockScoutWeb.Router do
         only: [:index],
         as: :token_balance
       )
+
+      resources(
+        "/coin_balances",
+        AddressCoinBalanceController,
+        only: [:index],
+        as: :coin_balance
+      )
+
+      resources(
+        "/coin_balances/by_day",
+        AddressCoinBalanceByDayController,
+        only: [:index],
+        as: :coin_balance_by_day
+      )
     end
 
     resources "/tokens", Tokens.TokenController, only: [:show], as: :token do
@@ -173,6 +207,8 @@ defmodule BlockScoutWeb.Router do
     )
 
     get("/search", ChainController, :search)
+
+    get("/chain_blocks", ChainController, :chain_blocks, as: :chain_blocks)
 
     get("/api_docs", APIDocsController, :index)
   end

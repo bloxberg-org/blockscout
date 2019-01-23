@@ -1,11 +1,12 @@
 defmodule BlockScoutWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :block_scout_web
+  use Absinthe.Phoenix.Endpoint
 
   if Application.get_env(:block_scout_web, :sql_sandbox) do
     plug(Phoenix.Ecto.SQL.Sandbox, repo: Explorer.Repo)
   end
 
-  socket("/socket", BlockScoutWeb.UserSocket)
+  socket("/socket", BlockScoutWeb.UserSocket, websocket: [timeout: 45_000])
   socket("/wobserver", Wobserver.Web.PhoenixSocket)
 
   # Serve at "/" the static files from "priv/static" directory.
@@ -67,7 +68,12 @@ defmodule BlockScoutWeb.Endpoint do
     signing_salt: "iC2ksJHS"
   )
 
+  use SpandexPhoenix
+
   plug(BlockScoutWeb.Prometheus.Exporter)
+
+  # 'x-apollo-tracing' header for https://www.graphqlbin.com to work with our GraphQL endpoint
+  plug(CORSPlug, headers: ["x-apollo-tracing" | CORSPlug.defaults()[:headers]])
 
   plug(BlockScoutWeb.Router)
 

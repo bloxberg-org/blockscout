@@ -7,6 +7,13 @@ defmodule Indexer.Address.CoinBalances do
     Enum.reduce(import_options, MapSet.new(), &reducer/2)
   end
 
+  defp reducer({:beneficiary_params, beneficiary_params}, acc) when is_list(beneficiary_params) do
+    Enum.into(beneficiary_params, acc, fn %{address_hash: address_hash, block_number: block_number}
+                                          when is_binary(address_hash) and is_integer(block_number) ->
+      %{address_hash: address_hash, block_number: block_number}
+    end)
+  end
+
   defp reducer({:blocks_params, blocks_params}, acc) when is_list(blocks_params) do
     # a block MUST have a miner_hash and number
     Enum.into(blocks_params, acc, fn %{miner_hash: address_hash, number: block_number}
@@ -48,7 +55,7 @@ defmodule Indexer.Address.CoinBalances do
       %{type: "create", created_contract_address_hash: address_hash} when is_binary(address_hash) ->
         MapSet.put(acc, %{address_hash: address_hash, block_number: block_number})
 
-      %{type: "suicide", from_address_hash: from_address_hash, to_address_hash: to_address_hash}
+      %{type: "selfdestruct", from_address_hash: from_address_hash, to_address_hash: to_address_hash}
       when is_binary(from_address_hash) and is_binary(to_address_hash) ->
         acc
         |> MapSet.put(%{address_hash: from_address_hash, block_number: block_number})

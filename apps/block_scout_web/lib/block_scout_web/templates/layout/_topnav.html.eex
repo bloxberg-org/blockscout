@@ -1,7 +1,7 @@
 <nav class="navbar navbar-dark navbar-expand-lg navbar-primary" data-selector="navbar">
   <div class="container">
     <%= link to: chain_path(@conn, :show), class: "navbar-brand", "data-test": "header_logo" do %>
-      <img class="navbar-logo" src="<%= logo() %>" />
+      <img class="navbar-logo" src="<%= logo() %>" alt="<%= subnetwork_title() %>" />
     <% end %>
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="<%= gettext("Toggle navigation") %>">
       <span class="navbar-toggler-icon"></span>
@@ -56,13 +56,25 @@
             <%= gettext("Accounts") %>
           <% end %>
         </li>
-        <li class="nav-item">
-          <%= link to: api_docs_path(@conn, :index), class: "nav-link topnav-nav-link" do %>
+        <li class="nav-item dropdown">
+          <a href="#" role="button" id="navbarAPIsDropdown" class="nav-link topnav-nav-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
             <span class="nav-link-icon">
               <%= render BlockScoutWeb.IconsView, "_api_icon.html" %>
             </span>
-            <%= gettext("API") %>
-          <% end %>
+            <%= gettext("APIs") %>
+          </a>
+          <div class="dropdown-menu" aria-labeledby="navbarTransactionsDropdown">
+            <%= link(
+                  gettext("GraphQL"),
+                  class: "dropdown-item",
+                  to: "/graphiql"
+                ) %>
+            <%= link(
+                  gettext("RPC"),
+                  class: "dropdown-item",
+                  to: api_docs_path(@conn, :index)
+                ) %>
+          </div>
         </li>
       </ul>
       <div class="search-form d-lg-flex d-inline-block">
@@ -91,8 +103,9 @@
               <%= subnetwork_title() %>
             </a>
             <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-              <a class="dropdown-item" href="https://sokol.blockscout.com/"><%= gettext("POA Sokol") %></a>
-              <a class="dropdown-item" href="https://poa.blockscout.com/"><%= gettext("POA Core") %></a>
+              <%= for %{url: url, title: title} <- other_networks() do %>
+                <a class="dropdown-item" href="<%= url%>"><%= title %></a>
+              <% end %>
             </div>
           </li>
         </ul>

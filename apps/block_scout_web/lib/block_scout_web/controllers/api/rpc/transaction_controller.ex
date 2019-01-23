@@ -3,6 +3,24 @@ defmodule BlockScoutWeb.API.RPC.TransactionController do
 
   alias Explorer.Chain
 
+  def gettxinfo(conn, params) do
+    with {:txhash_param, {:ok, txhash_param}} <- fetch_txhash(params),
+         {:format, {:ok, transaction_hash}} <- to_transaction_hash(txhash_param),
+         {:transaction, {:ok, transaction}} <- transaction_from_hash(transaction_hash) do
+      logs = Chain.transaction_to_logs(transaction)
+      render(conn, :gettxinfo, %{transaction: transaction, block_height: Chain.block_height(), logs: logs})
+    else
+      {:transaction, :error} ->
+        render(conn, :error, error: "Transaction not found")
+
+      {:txhash_param, :error} ->
+        render(conn, :error, error: "Query parameter txhash is required")
+
+      {:format, :error} ->
+        render(conn, :error, error: "Invalid txhash format")
+    end
+  end
+
   def gettxreceiptstatus(conn, params) do
     with {:txhash_param, {:ok, txhash_param}} <- fetch_txhash(params),
          {:format, {:ok, transaction_hash}} <- to_transaction_hash(txhash_param) do
@@ -33,6 +51,13 @@ defmodule BlockScoutWeb.API.RPC.TransactionController do
 
   defp fetch_txhash(params) do
     {:txhash_param, Map.fetch(params, "txhash")}
+  end
+
+  defp transaction_from_hash(transaction_hash) do
+    case Chain.hash_to_transaction(transaction_hash, necessity_by_association: %{block: :required}) do
+      {:error, :not_found} -> {:transaction, :error}
+      {:ok, transaction} -> {:transaction, {:ok, transaction}}
+    end
   end
 
   defp to_transaction_hash(transaction_hash_string) do

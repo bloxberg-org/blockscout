@@ -51,12 +51,13 @@ defmodule Indexer.Block.Uncle.FetcherTest do
       uncle_uncle_hash_data = to_string(block_hash())
 
       EthereumJSONRPC.Mox
-      |> expect(:json_rpc, fn [%{method: "eth_getBlockByHash", params: [^uncle_hash_data, true]}], _ ->
+      |> expect(:json_rpc, fn [%{id: id, method: "eth_getBlockByHash", params: [^uncle_hash_data, true]}], _ ->
         number_quantity = "0x0"
 
         {:ok,
          [
            %{
+             id: id,
              result: %{
                "author" => "0xe2ac1c6843a33f81ae4935e5ef1277a392990381",
                "difficulty" => "0xfffffffffffffffffffffffffffffffe",
@@ -69,6 +70,9 @@ defmodule Indexer.Block.Uncle.FetcherTest do
                "number" => number_quantity,
                "parentHash" => "0x006edcaa1e6fde822908783bc4ef1ad3675532d542fce53537557391cfe34c3c",
                "size" => "0x243",
+               "receiptsRoot" => "0x0",
+               "sha3Uncles" => "0x0",
+               "stateRoot" => "0x0",
                "timestamp" => "0x5b437f41",
                "totalDifficulty" => "0x342337ffffffffffffffffffffffffed8d29bb",
                "transactions" => [
@@ -93,6 +97,7 @@ defmodule Indexer.Block.Uncle.FetcherTest do
                    "value" => "0x0"
                  }
                ],
+               "transactionsRoot" => "0x0",
                "uncles" => [uncle_uncle_hash_data]
              }
            }

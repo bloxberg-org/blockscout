@@ -19,6 +19,7 @@ defmodule BlockScout.Mixfile do
         "coveralls.detail": :test,
         "coveralls.post": :test,
         "coveralls.html": :test,
+        credo: :test,
         dialyzer: :test
       ],
       start_permanent: Mix.env() == :prod,
@@ -60,6 +61,8 @@ defmodule BlockScout.Mixfile do
   # and cannot be accessed from applications inside the apps folder
   defp deps do
     [
+      # Release
+      {:distillery, "~> 2.0", runtime: false},
       # Documentation
       {:ex_doc, "~> 0.19.0", only: [:dev]},
       # Code coverage

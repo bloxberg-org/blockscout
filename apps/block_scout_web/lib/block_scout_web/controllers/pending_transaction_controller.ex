@@ -3,9 +3,11 @@ defmodule BlockScoutWeb.PendingTransactionController do
 
   import BlockScoutWeb.Chain, only: [paging_options: 1, next_page_params: 3, split_list_by_page: 1]
 
+  alias BlockScoutWeb.TransactionView
   alias Explorer.Chain
+  alias Phoenix.View
 
-  def index(conn, params) do
+  def index(conn, %{"type" => "JSON"} = params) do
     full_options =
       Keyword.merge(
         [
@@ -17,18 +19,46 @@ defmodule BlockScoutWeb.PendingTransactionController do
         paging_options(params)
       )
 
-    transactions_plus_one = Chain.recent_pending_transactions(full_options)
+    {transactions, next_page} = get_pending_transactions_and_next_page(full_options)
 
-    {transactions, next_page} = split_list_by_page(transactions_plus_one)
+    next_page_url =
+      case next_page_params(next_page, transactions, params) do
+        nil ->
+          nil
 
-    pending_transaction_count = Chain.pending_transaction_count()
+        next_page_params ->
+          pending_transaction_path(
+            conn,
+            :index,
+            Map.delete(next_page_params, "type")
+          )
+      end
 
-    render(
+    json(
       conn,
-      "index.html",
-      next_page_params: next_page_params(next_page, transactions, params),
-      pending_transaction_count: pending_transaction_count,
-      transactions: transactions
+      %{
+        items:
+          Enum.map(transactions, fn transaction ->
+            View.render_to_string(
+              TransactionView,
+              "_tile.html",
+              transaction: transaction
+            )
+          end),
+        next_page_path: next_page_url
+      }
     )
+  end
+
+  def index(conn, _params) do
+    render(conn, "index.html",
+      current_path: current_path(conn),
+      pending_transaction_count: Chain.pending_transaction_count()
+    )
+  end
+
+  defp get_pending_transactions_and_next_page(options) do
+    transactions_plus_one = Chain.recent_pending_transactions(options)
+    split_list_by_page(transactions_plus_one)
   end
 end
