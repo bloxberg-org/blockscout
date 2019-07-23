@@ -11,7 +11,8 @@
 ## Heartbeat management; auto-restarts VM if it dies or becomes unresponsive
 ## (Disabled by default..use with caution!)
 -heart
-
+-env HEART_BEAT_TIMEOUT 30
+-env HEART_BEAT_COMMAND sudo mix phx.server
 ## Enable kernel poll and a few async threads
 ##+K true
 ##+A 5

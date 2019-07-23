@@ -1,6 +1,6 @@
 FROM bitwalker/alpine-elixir-phoenix:latest
 
-RUN apk --no-cache --update add automake libtool inotify-tools autoconf
+RUN apk --no-cache --update add gmp-dev alpine-sdk automake libtool inotify-tools autoconf
 
 EXPOSE 4000
 
