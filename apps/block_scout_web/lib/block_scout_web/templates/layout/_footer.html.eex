@@ -8,5 +8,11 @@
 
     <%= gettext "Copyright %{year} Bloxberg", year: 2019 %>
 
+    <%= unless ignore_version?(version) do %>
+      <% release_link = release_link(version) %>
+      <div>
+        <%= gettext("Version") %>: <%= release_link %>
+      </div>
+    <% end %>
   </div>
 </footer>

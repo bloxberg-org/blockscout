@@ -1,8 +1,9 @@
 SYSTEM = $(shell uname -s)
 HOST = host.docker.internal
 DOCKER_IMAGE = blockscout_prod
+BS_CONTAINER_NAME = blockscout
 PG_CONTAINER_NAME = postgres
-PG_CONTAINER_IMAGE = postgres:10.4
+PG_CONTAINER_IMAGE = postgres:10.6
 THIS_FILE = $(lastword $(MAKEFILE_LIST))
 
 ifeq ($(SYSTEM), Linux)
@@ -53,7 +54,7 @@ ifdef HAS_BLOCKSCOUT_IMAGE
 	@echo "==> Image exist. Using $(DOCKER_IMAGE)"
 else
 	@echo "==> No image found trying to build one..."
-	@docker build -f ./Dockerfile -t $(DOCKER_IMAGE) ../
+	@docker build --build-arg COIN="$(COIN)" -f ./Dockerfile -t $(DOCKER_IMAGE) ../
 endif
 
 migrate: build postgres
@@ -63,8 +64,8 @@ migrate: build postgres
 					$(DOCKER_IMAGE) /bin/sh -c "echo $$MIX_ENV && mix do ecto.drop --force, ecto.create, ecto.migrate"
 
 
-PG_EXIST := $(shell docker ps -a | grep ${PG_CONTAINER_NAME})
-PG_STARTED := $(shell docker ps | grep ${PG_CONTAINER_NAME})
+PG_EXIST := $(shell docker ps -a --filter name=${PG_CONTAINER_NAME} | grep ${PG_CONTAINER_NAME})
+PG_STARTED := $(shell docker ps --filter name=${PG_CONTAINER_NAME} | grep ${PG_CONTAINER_NAME})
 postgres:
 ifdef PG_EXIST
 	@echo "==> Checking PostrgeSQL container"
@@ -87,7 +88,7 @@ endif
 
 start: build postgres 
 	@echo "==> Starting blockscout"
-	@docker run --rm \
+	@docker run --rm --name $(BS_CONTAINER_NAME) \
 					$(BLOCKSCOUT_CONTAINNER_PARAMS) \
 					-p 4000:4000 \
 					$(DOCKER_IMAGE) /bin/sh -c "mix phx.server"

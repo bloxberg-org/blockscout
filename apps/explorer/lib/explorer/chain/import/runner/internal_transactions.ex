@@ -51,10 +51,8 @@ defmodule Explorer.Chain.Import.Runner.InternalTransactions do
     |> Multi.run(:internal_transactions, fn repo, _ ->
       insert(repo, changes_list, insert_options)
     end)
-    |> Multi.run(:internal_transactions_indexed_at_transactions, fn repo,
-                                                                    %{internal_transactions: internal_transactions}
-                                                                    when is_list(internal_transactions) ->
-      update_transactions(repo, internal_transactions, update_transactions_options)
+    |> Multi.run(:internal_transactions_indexed_at_transactions, fn repo, _ ->
+      update_transactions(repo, changes_list, update_transactions_options)
     end)
   end
 
@@ -173,8 +171,7 @@ defmodule Explorer.Chain.Import.Runner.InternalTransactions do
               ),
             status:
               fragment(
-                "COALESCE(?, CASE WHEN (SELECT it.error FROM internal_transactions AS it WHERE it.transaction_hash = ? ORDER BY it.index ASC LIMIT 1) IS NULL THEN ? ELSE ? END)",
-                t.status,
+                "CASE WHEN (SELECT it.error FROM internal_transactions AS it WHERE it.transaction_hash = ? ORDER BY it.index ASC LIMIT 1) IS NULL THEN ? ELSE ? END",
                 t.hash,
                 type(^:ok, t.status),
                 type(^:error, t.status)

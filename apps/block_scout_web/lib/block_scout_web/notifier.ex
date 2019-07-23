@@ -4,13 +4,15 @@ defmodule BlockScoutWeb.Notifier do
   """
 
   alias Absinthe.Subscription
-  alias BlockScoutWeb.Endpoint
+  alias BlockScoutWeb.{AddressContractVerificationView, Endpoint}
   alias Explorer.{Chain, Market, Repo}
   alias Explorer.Chain.{Address, InternalTransaction, Transaction}
   alias Explorer.Counters.AverageBlockTime
   alias Explorer.ExchangeRates.Token
+  alias Explorer.SmartContract.{Solidity.CodeCompiler, Solidity.CompilerVersion}
+  alias Phoenix.View
 
-  def handle_event({:chain_event, :addresses, :realtime, addresses}) do
+  def handle_event({:chain_event, :addresses, type, addresses}) when type in [:realtime, :on_demand] do
     Endpoint.broadcast("addresses:new_address", "count", %{count: Chain.count_addresses_with_balance_from_cache()})
 
     addresses
@@ -18,8 +20,41 @@ defmodule BlockScoutWeb.Notifier do
     |> Enum.each(&broadcast_balance/1)
   end
 
-  def handle_event({:chain_event, :address_coin_balances, :realtime, address_coin_balances}) do
+  def handle_event({:chain_event, :address_coin_balances, type, address_coin_balances})
+      when type in [:realtime, :on_demand] do
     Enum.each(address_coin_balances, &broadcast_address_coin_balance/1)
+  end
+
+  def handle_event(
+        {:chain_event, :contract_verification_result, :on_demand, {address_hash, contract_verification_result, conn}}
+      ) do
+    contract_verification_result =
+      case contract_verification_result do
+        {:ok, _} = result ->
+          result
+
+        {:error, changeset} ->
+          {:ok, compiler_versions} = CompilerVersion.fetch_versions()
+
+          result =
+            View.render_to_string(AddressContractVerificationView, "new.html",
+              changeset: changeset,
+              compiler_versions: compiler_versions,
+              evm_versions: CodeCompiler.allowed_evm_versions(),
+              address_hash: address_hash,
+              conn: conn
+            )
+
+          {:error, result}
+      end
+
+    Endpoint.broadcast(
+      "addresses:#{address_hash}",
+      "verification_result",
+      %{
+        result: contract_verification_result
+      }
+    )
   end
 
   def handle_event({:chain_event, :block_rewards, :realtime, rewards}) do
@@ -36,7 +71,7 @@ defmodule BlockScoutWeb.Notifier do
     exchange_rate = Market.get_exchange_rate(Explorer.coin()) || Token.null()
 
     market_history_data =
-      case Market.fetch_recent_history(30) do
+      case Market.fetch_recent_history() do
         [today | the_rest] -> [%{today | closing_price: exchange_rate.usd_value} | the_rest]
         data -> data
       end
@@ -103,15 +138,19 @@ defmodule BlockScoutWeb.Notifier do
   end
 
   defp broadcast_balance(%Address{hash: address_hash} = address) do
-    Endpoint.broadcast("addresses:#{address_hash}", "balance_update", %{
-      address: address,
-      exchange_rate: Market.get_exchange_rate(Explorer.coin()) || Token.null()
-    })
+    Endpoint.broadcast(
+      "addresses:#{address_hash}",
+      "balance_update",
+      %{
+        address: address,
+        exchange_rate: Market.get_exchange_rate(Explorer.coin()) || Token.null()
+      }
+    )
   end
 
   defp broadcast_block(block) do
     preloaded_block = Repo.preload(block, [[miner: :names], :transactions, :rewards])
-    average_block_time = AverageBlockTime.average_block_time(preloaded_block)
+    average_block_time = AverageBlockTime.average_block_time()
 
     Endpoint.broadcast("blocks:new_block", "new_block", %{
       block: preloaded_block,

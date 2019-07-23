@@ -8,7 +8,7 @@ defmodule Explorer.Chain.Import.Runner.Transactions do
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.{Multi, Repo}
-  alias Explorer.Chain.{Data, Hash, Import, Transaction}
+  alias Explorer.Chain.{Block, Data, Hash, Import, Transaction}
   alias Explorer.Chain.Import.Runner.TokenTransfers
 
   @behaviour Import.Runner
@@ -42,8 +42,12 @@ defmodule Explorer.Chain.Import.Runner.Transactions do
       |> Map.put(:timestamps, timestamps)
       |> Map.put(:token_transfer_transaction_hash_set, token_transfer_transaction_hash_set(options))
 
-    Multi.run(multi, :transactions, fn repo, _ ->
+    multi
+    |> Multi.run(:transactions, fn repo, _ ->
       insert(repo, changes_list, insert_options)
+    end)
+    |> Multi.run(:recollated_transactions, fn repo, %{transactions: transactions} ->
+      discard_blocks_for_recollated_transactions(repo, transactions, insert_options)
     end)
   end
 
@@ -86,7 +90,7 @@ defmodule Explorer.Chain.Import.Runner.Transactions do
       conflict_target: :hash,
       on_conflict: on_conflict,
       for: Transaction,
-      returning: ~w(block_number index hash internal_transactions_indexed_at)a,
+      returning: true,
       timeout: timeout,
       timestamps: timestamps
     )
@@ -98,8 +102,10 @@ defmodule Explorer.Chain.Import.Runner.Transactions do
       update: [
         set: [
           block_hash: fragment("EXCLUDED.block_hash"),
+          old_block_hash: transaction.block_hash,
           block_number: fragment("EXCLUDED.block_number"),
           created_contract_address_hash: fragment("EXCLUDED.created_contract_address_hash"),
+          created_contract_code_indexed_at: fragment("EXCLUDED.created_contract_code_indexed_at"),
           cumulative_gas_used: fragment("EXCLUDED.cumulative_gas_used"),
           error: fragment("EXCLUDED.error"),
           from_address_hash: fragment("EXCLUDED.from_address_hash"),
@@ -123,10 +129,11 @@ defmodule Explorer.Chain.Import.Runner.Transactions do
       ],
       where:
         fragment(
-          "(EXCLUDED.block_hash, EXCLUDED.block_number, EXCLUDED.created_contract_address_hash, EXCLUDED.cumulative_gas_used, EXCLUDED.cumulative_gas_used, EXCLUDED.from_address_hash, EXCLUDED.gas, EXCLUDED.gas_price, EXCLUDED.gas_used, EXCLUDED.index, EXCLUDED.internal_transactions_indexed_at, EXCLUDED.input, EXCLUDED.nonce, EXCLUDED.r, EXCLUDED.s, EXCLUDED.status, EXCLUDED.to_address_hash, EXCLUDED.v, EXCLUDED.value) IS DISTINCT FROM (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "(EXCLUDED.block_hash, EXCLUDED.block_number, EXCLUDED.created_contract_address_hash, EXCLUDED.created_contract_code_indexed_at, EXCLUDED.cumulative_gas_used, EXCLUDED.cumulative_gas_used, EXCLUDED.from_address_hash, EXCLUDED.gas, EXCLUDED.gas_price, EXCLUDED.gas_used, EXCLUDED.index, EXCLUDED.internal_transactions_indexed_at, EXCLUDED.input, EXCLUDED.nonce, EXCLUDED.r, EXCLUDED.s, EXCLUDED.status, EXCLUDED.to_address_hash, EXCLUDED.v, EXCLUDED.value) IS DISTINCT FROM (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           transaction.block_hash,
           transaction.block_number,
           transaction.created_contract_address_hash,
+          transaction.created_contract_code_indexed_at,
           transaction.cumulative_gas_used,
           transaction.cumulative_gas_used,
           transaction.from_address_hash,
@@ -178,4 +185,43 @@ defmodule Explorer.Chain.Import.Runner.Transactions do
   end
 
   defp put_internal_transactions_indexed_at?(_, _), do: false
+
+  defp discard_blocks_for_recollated_transactions(repo, transactions, %{
+         timeout: timeout,
+         timestamps: %{updated_at: updated_at}
+       })
+       when is_list(transactions) do
+    ordered_block_hashes =
+      transactions
+      |> Enum.filter(fn %{block_hash: block_hash, old_block_hash: old_block_hash} ->
+        not is_nil(old_block_hash) and block_hash != old_block_hash
+      end)
+      |> MapSet.new(& &1.old_block_hash)
+      |> Enum.sort()
+
+    if Enum.empty?(ordered_block_hashes) do
+      {:ok, []}
+    else
+      query =
+        from(
+          block in Block,
+          where: block.hash in ^ordered_block_hashes,
+          update: [
+            set: [
+              consensus: false,
+              updated_at: ^updated_at
+            ]
+          ]
+        )
+
+      try do
+        {_, result} = repo.update_all(query, [], timeout: timeout)
+
+        {:ok, result}
+      rescue
+        postgrex_error in Postgrex.Error ->
+          {:error, %{exception: postgrex_error, block_hashes: ordered_block_hashes}}
+      end
+    end
+  end
 end
