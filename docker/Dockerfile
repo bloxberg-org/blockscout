@@ -1,7 +1,10 @@
 FROM bitwalker/alpine-elixir-phoenix:1.9.0
 
+USER 0:0
+RUN chown -Rf 999.999 /opt /home
 RUN apk --no-cache --update add alpine-sdk gmp-dev automake libtool inotify-tools autoconf python
 
+USER 999:999
 EXPOSE 4000
 
 ENV PORT=4000 \
@@ -25,6 +28,10 @@ RUN if [ "$COIN" != "" ]; then sed -i s/"POA"/"${COIN}"/g apps/block_scout_web/p
 # Run forderground build and phoenix digest
 RUN mix compile
 
+USER 0:0
+RUN chown -Rf 999.999 /opt /home
+
+USER 999:999
 # Add blockscout npm deps
 RUN cd apps/block_scout_web/assets/ && \
     npm install && \
@@ -32,11 +39,15 @@ RUN cd apps/block_scout_web/assets/ && \
     cd -
 
 RUN cd apps/explorer/ && \
-    npm install && \
-    apk update && apk del --force-broken-world alpine-sdk gmp-dev automake libtool inotify-tools autoconf python
+    npm install 
+
+USER 0:0
+RUN  apk update && apk del --force-broken-world alpine-sdk gmp-dev automake libtool inotify-tools autoconf python
 
 # RUN mix do ecto.drop --force, ecto.create, ecto.migrate
 
 # USER default
 
-# CMD ["mix", "phx.server"]
+USER 999:999
+ENTRYPOINT ["/usr/bin/env"]
+CMD ["mix", "phx.server"]

@@ -20,14 +20,14 @@ defmodule Explorer.Validator.MetadataRetriever do
       Reader.query_contract(config(:validators_contract_address), contract_abi("validators.json"), %{
         "getValidators" => []
       })
-
-    validators
+    validators 
   end
 
+
   defp fetch_validator_metadata(validator_address) do
-    %{"validators" => {:ok, fields}} =
+    %{"validatorsMetadata" => {:ok, fields}} =
       Reader.query_contract(config(:metadata_contract_address), contract_abi("metadata.json"), %{
-        "validators" => [validator_address]
+        "validatorsMetadata" => [validator_address]
       })
 
     fields
@@ -36,24 +36,18 @@ defmodule Explorer.Validator.MetadataRetriever do
   defp translate_metadata([
          first_name,
          last_name,
-         license_id,
-         full_address,
-         state,
-         zipcode,
-         expiration_date,
-         created_date,
-         _updated_date,
-         _min_treshold
+         contactEmail,
+         researchInstitute,
+         researchField,
+         instituteAddress,
+         sender
        ]) do
     %{
-      name: trim_null_bytes(first_name) <> " " <> trim_null_bytes(last_name),
+      name: researchInstitute,
       metadata: %{
-        license_id: trim_null_bytes(license_id),
-        address: full_address,
-        state: trim_null_bytes(state),
-        zipcode: trim_null_bytes(zipcode),
-        expiration_date: expiration_date,
-        created_date: created_date
+        license_id: first_name <> " " <> last_name,
+	researchField: researchField,
+        address: instituteAddress,
       }
     }
   end

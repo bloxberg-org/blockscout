@@ -1,17 +1,19 @@
 <footer class="footer">
   <div class="footer-body container">
     <%= link to: chain_path(@conn, :show), class: "footer-brand" do %>
-      <img class="footer-logo" src="<%= logo() %>" />
+      <img class="footer-logo" src="<%= logo_footer() %>" />
     <% end %>
     <div class="icon-links icon-links-primary">
     </div>
 
-    <%= gettext "Copyright %{year} Bloxberg", year: 2019 %>
+    Copyright &copy; 2019 Bloxberg
+
+    <% version = version() %>
 
     <%= unless ignore_version?(version) do %>
       <% release_link = release_link(version) %>
       <div>
-        <%= gettext("Version") %>: <%= release_link %>
+        <%= gettext("Version") %>: 0.1.1-2.0.3
       </div>
     <% end %>
   </div>
