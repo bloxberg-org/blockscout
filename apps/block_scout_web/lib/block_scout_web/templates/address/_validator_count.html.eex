@@ -1,3 +1,0 @@
-            <div class="col-sm-8">
-             <%= @validator_metadata["numberInstitutes"] %>
-  </div>
