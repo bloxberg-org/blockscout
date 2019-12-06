@@ -13,7 +13,7 @@
     <%= unless ignore_version?(version) do %>
       <% release_link = release_link(version) %>
       <div>
-        <%= gettext("Version") %>: 0.1.1-2.0.3
+        <%= gettext("Version") %>: 0.1.2-2.0.3
       </div>
     <% end %>
   </div>
