@@ -3,6 +3,8 @@ FROM bitwalker/alpine-elixir-phoenix:1.9.0
 USER 0:0
 RUN chown -Rf 999.999 /opt /home
 RUN apk --no-cache --update add alpine-sdk gmp-dev automake libtool inotify-tools autoconf python
+RUN apk --no-cache upgrade
+
 
 USER 999:999
 EXPOSE 4000
