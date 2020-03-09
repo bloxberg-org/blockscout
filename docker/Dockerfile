@@ -1,4 +1,4 @@
-FROM bitwalker/alpine-elixir-phoenix:1.9.0
+FROM bitwalker/alpine-elixir-phoenix:1.9.4
 
 USER 0:0
 RUN chown -Rf 999.999 /opt /home
@@ -18,7 +18,7 @@ ADD apps/explorer/mix.exs ./apps/explorer/
 ADD apps/ethereum_jsonrpc/mix.exs ./apps/ethereum_jsonrpc/
 ADD apps/indexer/mix.exs ./apps/indexer/
 
-RUN mix do deps.get, deps.compile
+RUN mix do deps.get, local.rebar --force, deps.compile
 
 ADD . .
 
@@ -45,6 +45,8 @@ USER 0:0
 RUN  apk update && apk del --force-broken-world alpine-sdk gmp-dev automake libtool inotify-tools autoconf python
 
 # RUN mix do ecto.drop --force, ecto.create, ecto.migrate
+
+RUN mix phx.digest
 
 # USER default
 

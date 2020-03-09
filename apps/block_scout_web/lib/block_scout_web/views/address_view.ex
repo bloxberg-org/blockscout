@@ -16,6 +16,7 @@ defmodule BlockScoutWeb.AddressView do
     "contracts",
     "decompiled_contracts",
     "internal_transactions",
+    "token_transfers",
     "read_contract",
     "tokens",
     "transactions",
@@ -107,6 +108,10 @@ defmodule BlockScoutWeb.AddressView do
 
   def balance(%Address{fetched_coin_balance: balance}) do
     format_wei_value(balance, :ether)
+  end
+
+  def balance_percentage_enabled? do
+    Application.get_env(:block_scout_web, :show_percentage)
   end
 
   def balance_percentage(_, nil), do: ""
@@ -201,7 +206,7 @@ defmodule BlockScoutWeb.AddressView do
   def smart_contract_verified?(%Address{smart_contract: nil}), do: false
 
   def smart_contract_with_read_only_functions?(%Address{smart_contract: %SmartContract{}} = address) do
-    Enum.any?(address.smart_contract.abi, & &1["constant"])
+    Enum.any?(address.smart_contract.abi, &(&1["constant"] || &1["stateMutability"] == "view"))
   end
 
   def smart_contract_with_read_only_functions?(%Address{smart_contract: nil}), do: false
@@ -218,12 +223,6 @@ defmodule BlockScoutWeb.AddressView do
   end
 
   def token_title(%Token{name: name, symbol: symbol}), do: "#{name} (#{symbol})"
-
-  def incoming_transaction_count(address_hash) do
-    address_hash
-    |> Chain.address_to_incoming_transaction_count()
-    |> Cldr.Number.to_string!(format: "#,###")
-  end
 
   def trimmed_hash(%Hash{} = hash) do
     string_hash = to_string(hash)
@@ -271,7 +270,8 @@ defmodule BlockScoutWeb.AddressView do
       partial: "_responsive_hash.html",
       address: current_address,
       contract: contract?,
-      truncate: truncate
+      truncate: truncate,
+      use_custom_tooltip: false
     ]
   end
 
@@ -281,7 +281,8 @@ defmodule BlockScoutWeb.AddressView do
       partial: "_link.html",
       address: address,
       contract: contract?,
-      truncate: truncate
+      truncate: truncate,
+      use_custom_tooltip: false
     ]
   end
 
@@ -304,6 +305,7 @@ defmodule BlockScoutWeb.AddressView do
   defp tab_name(["tokens"]), do: gettext("Tokens")
   defp tab_name(["transactions"]), do: gettext("Transactions")
   defp tab_name(["internal_transactions"]), do: gettext("Internal Transactions")
+  defp tab_name(["token_transfers"]), do: gettext("Token Transfers")
   defp tab_name(["contracts"]), do: gettext("Code")
   defp tab_name(["decompiled_contracts"]), do: gettext("Decompiled Code")
   defp tab_name(["read_contract"]), do: gettext("Read Contract")
@@ -319,6 +321,14 @@ defmodule BlockScoutWeb.AddressView do
     >> = to_string(hash)
 
     "0x" <> short_address
+  end
+
+  def short_contract_name(name, max_length) do
+    part_length = Kernel.trunc(max_length / 4)
+
+    if String.length(name) <= max_length,
+      do: name,
+      else: "#{String.slice(name, 0, max_length - part_length)}..#{String.slice(name, -part_length, part_length)}"
   end
 
   def address_page_title(address) do

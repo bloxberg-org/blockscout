@@ -6,14 +6,14 @@
     <div class="icon-links icon-links-primary">
     </div>
 
-    Copyright &copy; 2019 Bloxberg
+    Copyright &copy; 2020 Bloxberg
 
     <% version = version() %>
 
     <%= unless ignore_version?(version) do %>
       <% release_link = release_link(version) %>
       <div>
-        <%= gettext("Version") %>: 0.1.2-2.0.3
+        <%= gettext("Version") %>: 0.1.2-2.0.4
       </div>
     <% end %>
   </div>

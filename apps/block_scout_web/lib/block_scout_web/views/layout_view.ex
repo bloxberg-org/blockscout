@@ -20,42 +20,13 @@ defmodule BlockScoutWeb.LayoutView do
       url: "https://blockscout.com/poa/dai"
     },
     %{
-      title: "Ethereum Mainnet",
-      url: "https://blockscout.com/eth/mainnet"
-    },
-    %{
       title: "Kovan Testnet",
       url: "https://blockscout.com/eth/kovan",
       test_net?: true
     },
     %{
-      title: "Ropsten Testnet",
-      url: "https://blockscout.com/eth/ropsten",
-      test_net?: true
-    },
-    %{
-      title: "Goerli Testnet",
-      url: "https://blockscout.com/eth/goerli",
-      test_net?: true
-    },
-    %{
-      title: "Rinkeby Testnet",
-      url: "https://blockscout.com/eth/rinkeby",
-      test_net?: true
-    },
-    %{
       title: "Ethereum Classic",
       url: "https://blockscout.com/etc/mainnet",
-      other?: true
-    },
-    %{
-      title: "Aerum Mainnet",
-      url: "https://blockscout.com/aerum/mainnet",
-      other?: true
-    },
-    %{
-      title: "Callisto Mainnet",
-      url: "https://blockscout.com/callisto/mainnet",
       other?: true
     },
     %{
@@ -66,10 +37,6 @@ defmodule BlockScoutWeb.LayoutView do
   ]
 
   alias BlockScoutWeb.SocialMedia
-
-  def network_icon_partial do
-    Keyword.get(application_config(), :network_icon) || "_network_icon.html"
-  end
 
   def logo do
     Keyword.get(application_config(), :logo) || "/images/blockscout_logo.svg"
@@ -85,7 +52,7 @@ defmodule BlockScoutWeb.LayoutView do
   end
 
   def network_title do
-    Keyword.get(application_config(), :network) || "POA"
+    Keyword.get(application_config(), :network) || "Bloxberg"
   end
 
   defp application_config do
@@ -170,9 +137,14 @@ defmodule BlockScoutWeb.LayoutView do
   def other_networks do
     get_other_networks =
       if Application.get_env(:block_scout_web, :other_networks) do
-        :block_scout_web
-        |> Application.get_env(:other_networks)
-        |> Parser.parse!(%{keys: :atoms!})
+        try do
+          :block_scout_web
+          |> Application.get_env(:other_networks)
+          |> Parser.parse!(%{keys: :atoms!})
+        rescue
+          _ ->
+            []
+        end
       else
         @default_other_networks
       end
@@ -228,4 +200,33 @@ defmodule BlockScoutWeb.LayoutView do
       []
     end
   end
+
+  def webapp_url(conn) do
+    :block_scout_web
+    |> Application.get_env(:webapp_url)
+    |> validate_url()
+    |> case do
+      :error -> chain_path(conn, :show)
+      {:ok, url} -> url
+    end
+  end
+
+  def api_url do
+    :block_scout_web
+    |> Application.get_env(:api_url)
+    |> validate_url()
+    |> case do
+      :error -> ""
+      {:ok, url} -> url
+    end
+  end
+
+  defp validate_url(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{host: nil} -> :error
+      _ -> {:ok, url}
+    end
+  end
+
+  defp validate_url(_), do: :error
 end
