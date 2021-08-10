@@ -1,0 +1,439 @@
+From f4925ebcb9bb8294b8dae434312b3d8f9219df9c Mon Sep 17 00:00:00 2001
+From: Victor Baranov <baranov.viktor.27@gmail.com>
+Date: Tue, 10 Mar 2020 18:19:28 +0300
+Subject: [PATCH] Prevent division by zero
+
+---
+ CHANGELOG.md                                  |  1 +
+ .../controllers/address_controller.ex         |  5 +++-
+ .../templates/address/_tile.html.eex          |  6 ++---
+ .../templates/address/index.html.eex          |  4 +--
+ .../common_components/_table-loader.html.eex  | 10 +++----
+ .../lib/block_scout_web/views/address_view.ex | 24 ++++++++++-------
+ .../views/common_components_view.ex           |  4 +--
+ apps/block_scout_web/priv/gettext/default.pot | 26 +++++++++----------
+ .../priv/gettext/en/LC_MESSAGES/default.po    | 26 +++++++++----------
+ .../views/address_view_test.exs               | 20 ++++++++++++++
+ 10 files changed, 77 insertions(+), 49 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 1f513aeca2..801bd45342 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -3,6 +3,7 @@
+ ### Features
+ 
+ ### Fixes
++- [#3044](https://github.com/poanetwork/blockscout/pull/3044) - Prevent division by zero on /accounts page
+ - [#3043](https://github.com/poanetwork/blockscout/pull/3043) - Extract host name for split couple of indexer and web app
+ - [#3042](https://github.com/poanetwork/blockscout/pull/3042) - Speedup pending txs list query
+ - [#2944](https://github.com/poanetwork/blockscout/pull/2944) - Split js logic into multiple files
+diff --git a/apps/block_scout_web/lib/block_scout_web/controllers/address_controller.ex b/apps/block_scout_web/lib/block_scout_web/controllers/address_controller.ex
+index ef4ce8ad59..212ee668e5 100644
+--- a/apps/block_scout_web/lib/block_scout_web/controllers/address_controller.ex
++++ b/apps/block_scout_web/lib/block_scout_web/controllers/address_controller.ex
+@@ -57,9 +57,12 @@ defmodule BlockScoutWeb.AddressController do
+   end
+ 
+   def index(conn, _params) do
++    total_supply = Chain.total_supply()
++
+     render(conn, "index.html",
+       current_path: current_path(conn),
+-      address_count: Chain.address_estimated_count()
++      address_count: Chain.address_estimated_count(),
++      total_supply: total_supply
+     )
+   end
+ 
+diff --git a/apps/block_scout_web/lib/block_scout_web/templates/address/_tile.html.eex b/apps/block_scout_web/lib/block_scout_web/templates/address/_tile.html.eex
+index 1c42695216..81f8a182ad 100644
+--- a/apps/block_scout_web/lib/block_scout_web/templates/address/_tile.html.eex
++++ b/apps/block_scout_web/lib/block_scout_web/templates/address/_tile.html.eex
+@@ -18,12 +18,10 @@
+       <% end %>
+     </span>
+   </td>
+-  <%= if balance_percentage_enabled?() do %>
++  <%= if balance_percentage_enabled?(@total_supply) do %>
+     <td class="stakes-td color-lighten">
+       <!-- percentage of coins from total supply -->
+-      <%= if @total_supply do %>
+-        <%= balance_percentage(@address, @total_supply) %>
+-      <% end %>
++      <%= balance_percentage(@address, @total_supply) %>
+     </td>
+   <% end %>
+   <td class="stakes-td">
+diff --git a/apps/block_scout_web/lib/block_scout_web/templates/address/index.html.eex b/apps/block_scout_web/lib/block_scout_web/templates/address/index.html.eex
+index 75f316aceb..7dace5a682 100644
+--- a/apps/block_scout_web/lib/block_scout_web/templates/address/index.html.eex
++++ b/apps/block_scout_web/lib/block_scout_web/templates/address/index.html.eex
+@@ -25,7 +25,7 @@
+ 		  Balance
+ 		</div>
+ 	      </th>
+-              <%= if balance_percentage_enabled?() do %>
++              <%= if balance_percentage_enabled?(@total_supply) do %>
+               <th class="stakes-table-th">
+                 <div class="stakes-table-th-content">
+                   Percentage
+@@ -40,7 +40,7 @@
+ 	    </tr>
+ 	  </thead>
+ 	  <tbody data-items data-selector="top-addresses-list">
+-	    <%= render BlockScoutWeb.CommonComponentsView, "_table-loader.html" %>
++	    <%= render BlockScoutWeb.CommonComponentsView, "_table-loader.html", total_supply: @total_supply %>
+ 	  </tbody>
+ 	</table>
+       </div>
+diff --git a/apps/block_scout_web/lib/block_scout_web/templates/common_components/_table-loader.html.eex b/apps/block_scout_web/lib/block_scout_web/templates/common_components/_table-loader.html.eex
+index 57c8b0185d..7c69c0cdb3 100644
+--- a/apps/block_scout_web/lib/block_scout_web/templates/common_components/_table-loader.html.eex
++++ b/apps/block_scout_web/lib/block_scout_web/templates/common_components/_table-loader.html.eex
+@@ -8,7 +8,7 @@
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+-  <%= if balance_percentage_enabled?() do %>
++  <%= if balance_percentage_enabled?(@total_supply) do %>
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+@@ -27,7 +27,7 @@
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+-  <%= if balance_percentage_enabled?() do %>
++  <%= if balance_percentage_enabled?(@total_supply) do %>
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+@@ -46,7 +46,7 @@
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+-  <%= if balance_percentage_enabled?() do %>
++  <%= if balance_percentage_enabled?(@total_supply) do %>
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+@@ -65,7 +65,7 @@
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+-  <%= if balance_percentage_enabled?() do %>
++  <%= if balance_percentage_enabled?(@total_supply) do %>
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+@@ -84,7 +84,7 @@
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+-  <%= if balance_percentage_enabled?() do %>
++  <%= if balance_percentage_enabled?(@total_supply) do %>
+   <td class="stakes-td">
+     <span class="table-content-loader"></span>
+   </td>
+diff --git a/apps/block_scout_web/lib/block_scout_web/views/address_view.ex b/apps/block_scout_web/lib/block_scout_web/views/address_view.ex
+index 8a0ece35fa..3e536bb0b3 100644
+--- a/apps/block_scout_web/lib/block_scout_web/views/address_view.ex
++++ b/apps/block_scout_web/lib/block_scout_web/views/address_view.ex
+@@ -110,20 +110,26 @@ defmodule BlockScoutWeb.AddressView do
+     format_wei_value(balance, :ether)
+   end
+ 
+-  def balance_percentage_enabled? do
+-    Application.get_env(:block_scout_web, :show_percentage)
++  def balance_percentage_enabled?(total_supply) do
++    Application.get_env(:block_scout_web, :show_percentage) && total_supply > 0
+   end
+ 
+   def balance_percentage(_, nil), do: ""
+ 
+   def balance_percentage(%Address{fetched_coin_balance: balance}, total_supply) do
+-    balance
+-    |> Wei.to(:ether)
+-    |> Decimal.div(Decimal.new(total_supply))
+-    |> Decimal.mult(100)
+-    |> Decimal.round(4)
+-    |> Decimal.to_string(:normal)
+-    |> Kernel.<>("% #{gettext("Market Cap")}")
++    if total_supply > 0 do
++      balance
++      |> Wei.to(:ether)
++      |> Decimal.div(Decimal.new(total_supply))
++      |> Decimal.mult(100)
++      |> Decimal.round(4)
++      |> Decimal.to_string(:normal)
++      |> Kernel.<>("% #{gettext("Market Cap")}")
++    else
++      balance
++      |> Wei.to(:ether)
++      |> Decimal.to_string(:normal)
++    end
+   end
+ 
+   def empty_exchange_rate?(exchange_rate) do
+diff --git a/apps/block_scout_web/lib/block_scout_web/views/common_components_view.ex b/apps/block_scout_web/lib/block_scout_web/views/common_components_view.ex
+index e7fab4636c..f950e795a2 100644
+--- a/apps/block_scout_web/lib/block_scout_web/views/common_components_view.ex
++++ b/apps/block_scout_web/lib/block_scout_web/views/common_components_view.ex
+@@ -1,7 +1,7 @@
+ defmodule BlockScoutWeb.CommonComponentsView do
+   use BlockScoutWeb, :view
+ 
+-  def balance_percentage_enabled? do
+-    Application.get_env(:block_scout_web, :show_percentage)
++  def balance_percentage_enabled?(total_supply) do
++    Application.get_env(:block_scout_web, :show_percentage) && total_supply > 0
+   end
+ end
+diff --git a/apps/block_scout_web/priv/gettext/default.pot b/apps/block_scout_web/priv/gettext/default.pot
+index 81d812306f..9e0a122b09 100644
+--- a/apps/block_scout_web/priv/gettext/default.pot
++++ b/apps/block_scout_web/priv/gettext/default.pot
+@@ -897,7 +897,7 @@ msgstr ""
+ #: lib/block_scout_web/templates/tokens/transfer/index.html.eex:14
+ #: lib/block_scout_web/templates/transaction/_tabs.html.eex:4
+ #: lib/block_scout_web/templates/transaction_token_transfer/index.html.eex:7
+-#: lib/block_scout_web/views/address_view.ex:308
++#: lib/block_scout_web/views/address_view.ex:314
+ #: lib/block_scout_web/views/tokens/instance/overview_view.ex:90
+ #: lib/block_scout_web/views/tokens/overview_view.ex:35
+ #: lib/block_scout_web/views/transaction_view.ex:314
+@@ -1035,8 +1035,8 @@ msgstr ""
+ #, elixir-format
+ #: lib/block_scout_web/templates/chain/show.html.eex:24
+ #: lib/block_scout_web/templates/layout/app.html.eex:30
+-#: lib/block_scout_web/views/address_view.ex:126
+-#: lib/block_scout_web/views/address_view.ex:126
++#: lib/block_scout_web/views/address_view.ex:127
++#: lib/block_scout_web/views/address_view.ex:127
+ msgid "Market Cap"
+ msgstr ""
+ 
+@@ -1488,7 +1488,7 @@ msgid "Transaction Speed"
+ msgstr ""
+ 
+ #, elixir-format
+-#: lib/block_scout_web/templates/address/_tile.html.eex:33
++#: lib/block_scout_web/templates/address/_tile.html.eex:31
+ msgid "Transactions sent"
+ msgstr ""
+ 
+@@ -1802,7 +1802,7 @@ msgstr ""
+ #, elixir-format
+ #: lib/block_scout_web/templates/address/_tabs.html.eex:37
+ #: lib/block_scout_web/templates/address_validation/index.html.eex:13
+-#: lib/block_scout_web/views/address_view.ex:313
++#: lib/block_scout_web/views/address_view.ex:319
+ msgid "Blocks Validated"
+ msgstr ""
+ 
+@@ -1812,18 +1812,18 @@ msgstr ""
+ #: lib/block_scout_web/templates/api_docs/_action_tile.html.eex:187
+ #: lib/block_scout_web/templates/api_docs/_eth_rpc_item.html.eex:126
+ #: lib/block_scout_web/templates/api_docs/_eth_rpc_item.html.eex:149
+-#: lib/block_scout_web/views/address_view.ex:309
++#: lib/block_scout_web/views/address_view.ex:315
+ msgid "Code"
+ msgstr ""
+ 
+ #, elixir-format
+ #: lib/block_scout_web/templates/address/_tabs.html.eex:26
+-#: lib/block_scout_web/views/address_view.ex:312
++#: lib/block_scout_web/views/address_view.ex:318
+ msgid "Coin Balance History"
+ msgstr ""
+ 
+ #, elixir-format
+-#: lib/block_scout_web/views/address_view.ex:310
++#: lib/block_scout_web/views/address_view.ex:316
+ msgid "Decompiled Code"
+ msgstr ""
+ 
+@@ -1832,7 +1832,7 @@ msgstr ""
+ #: lib/block_scout_web/templates/address_internal_transaction/index.html.eex:19
+ #: lib/block_scout_web/templates/transaction/_tabs.html.eex:11
+ #: lib/block_scout_web/templates/transaction_internal_transaction/index.html.eex:6
+-#: lib/block_scout_web/views/address_view.ex:307
++#: lib/block_scout_web/views/address_view.ex:313
+ #: lib/block_scout_web/views/transaction_view.ex:315
+ msgid "Internal Transactions"
+ msgstr ""
+@@ -1842,7 +1842,7 @@ msgstr ""
+ #: lib/block_scout_web/templates/address_logs/index.html.eex:8
+ #: lib/block_scout_web/templates/transaction/_tabs.html.eex:17
+ #: lib/block_scout_web/templates/transaction_log/index.html.eex:8
+-#: lib/block_scout_web/views/address_view.ex:314
++#: lib/block_scout_web/views/address_view.ex:320
+ #: lib/block_scout_web/views/transaction_view.ex:316
+ msgid "Logs"
+ msgstr ""
+@@ -1850,7 +1850,7 @@ msgstr ""
+ #, elixir-format
+ #: lib/block_scout_web/templates/address/_tabs.html.eex:62
+ #: lib/block_scout_web/templates/tokens/overview/_tabs.html.eex:25
+-#: lib/block_scout_web/views/address_view.ex:311
++#: lib/block_scout_web/views/address_view.ex:317
+ #: lib/block_scout_web/views/tokens/overview_view.ex:37
+ msgid "Read Contract"
+ msgstr ""
+@@ -1859,7 +1859,7 @@ msgstr ""
+ #: lib/block_scout_web/templates/address/_tabs.html.eex:14
+ #: lib/block_scout_web/templates/address_token/index.html.eex:8
+ #: lib/block_scout_web/templates/address_token_transfer/index.html.eex:11
+-#: lib/block_scout_web/views/address_view.ex:305
++#: lib/block_scout_web/views/address_view.ex:311
+ msgid "Tokens"
+ msgstr ""
+ 
+@@ -1871,6 +1871,6 @@ msgstr ""
+ #: lib/block_scout_web/templates/block_transaction/index.html.eex:18
+ #: lib/block_scout_web/templates/chain/show.html.eex:140
+ #: lib/block_scout_web/templates/layout/_topnav.html.eex:50
+-#: lib/block_scout_web/views/address_view.ex:306
++#: lib/block_scout_web/views/address_view.ex:312
+ msgid "Transactions"
+ msgstr ""
+diff --git a/apps/block_scout_web/priv/gettext/en/LC_MESSAGES/default.po b/apps/block_scout_web/priv/gettext/en/LC_MESSAGES/default.po
+index 81d812306f..9e0a122b09 100644
+--- a/apps/block_scout_web/priv/gettext/en/LC_MESSAGES/default.po
++++ b/apps/block_scout_web/priv/gettext/en/LC_MESSAGES/default.po
+@@ -897,7 +897,7 @@ msgstr ""
+ #: lib/block_scout_web/templates/tokens/transfer/index.html.eex:14
+ #: lib/block_scout_web/templates/transaction/_tabs.html.eex:4
+ #: lib/block_scout_web/templates/transaction_token_transfer/index.html.eex:7
+-#: lib/block_scout_web/views/address_view.ex:308
++#: lib/block_scout_web/views/address_view.ex:314
+ #: lib/block_scout_web/views/tokens/instance/overview_view.ex:90
+ #: lib/block_scout_web/views/tokens/overview_view.ex:35
+ #: lib/block_scout_web/views/transaction_view.ex:314
+@@ -1035,8 +1035,8 @@ msgstr ""
+ #, elixir-format
+ #: lib/block_scout_web/templates/chain/show.html.eex:24
+ #: lib/block_scout_web/templates/layout/app.html.eex:30
+-#: lib/block_scout_web/views/address_view.ex:126
+-#: lib/block_scout_web/views/address_view.ex:126
++#: lib/block_scout_web/views/address_view.ex:127
++#: lib/block_scout_web/views/address_view.ex:127
+ msgid "Market Cap"
+ msgstr ""
+ 
+@@ -1488,7 +1488,7 @@ msgid "Transaction Speed"
+ msgstr ""
+ 
+ #, elixir-format
+-#: lib/block_scout_web/templates/address/_tile.html.eex:33
++#: lib/block_scout_web/templates/address/_tile.html.eex:31
+ msgid "Transactions sent"
+ msgstr ""
+ 
+@@ -1802,7 +1802,7 @@ msgstr ""
+ #, elixir-format
+ #: lib/block_scout_web/templates/address/_tabs.html.eex:37
+ #: lib/block_scout_web/templates/address_validation/index.html.eex:13
+-#: lib/block_scout_web/views/address_view.ex:313
++#: lib/block_scout_web/views/address_view.ex:319
+ msgid "Blocks Validated"
+ msgstr ""
+ 
+@@ -1812,18 +1812,18 @@ msgstr ""
+ #: lib/block_scout_web/templates/api_docs/_action_tile.html.eex:187
+ #: lib/block_scout_web/templates/api_docs/_eth_rpc_item.html.eex:126
+ #: lib/block_scout_web/templates/api_docs/_eth_rpc_item.html.eex:149
+-#: lib/block_scout_web/views/address_view.ex:309
++#: lib/block_scout_web/views/address_view.ex:315
+ msgid "Code"
+ msgstr ""
+ 
+ #, elixir-format
+ #: lib/block_scout_web/templates/address/_tabs.html.eex:26
+-#: lib/block_scout_web/views/address_view.ex:312
++#: lib/block_scout_web/views/address_view.ex:318
+ msgid "Coin Balance History"
+ msgstr ""
+ 
+ #, elixir-format
+-#: lib/block_scout_web/views/address_view.ex:310
++#: lib/block_scout_web/views/address_view.ex:316
+ msgid "Decompiled Code"
+ msgstr ""
+ 
+@@ -1832,7 +1832,7 @@ msgstr ""
+ #: lib/block_scout_web/templates/address_internal_transaction/index.html.eex:19
+ #: lib/block_scout_web/templates/transaction/_tabs.html.eex:11
+ #: lib/block_scout_web/templates/transaction_internal_transaction/index.html.eex:6
+-#: lib/block_scout_web/views/address_view.ex:307
++#: lib/block_scout_web/views/address_view.ex:313
+ #: lib/block_scout_web/views/transaction_view.ex:315
+ msgid "Internal Transactions"
+ msgstr ""
+@@ -1842,7 +1842,7 @@ msgstr ""
+ #: lib/block_scout_web/templates/address_logs/index.html.eex:8
+ #: lib/block_scout_web/templates/transaction/_tabs.html.eex:17
+ #: lib/block_scout_web/templates/transaction_log/index.html.eex:8
+-#: lib/block_scout_web/views/address_view.ex:314
++#: lib/block_scout_web/views/address_view.ex:320
+ #: lib/block_scout_web/views/transaction_view.ex:316
+ msgid "Logs"
+ msgstr ""
+@@ -1850,7 +1850,7 @@ msgstr ""
+ #, elixir-format
+ #: lib/block_scout_web/templates/address/_tabs.html.eex:62
+ #: lib/block_scout_web/templates/tokens/overview/_tabs.html.eex:25
+-#: lib/block_scout_web/views/address_view.ex:311
++#: lib/block_scout_web/views/address_view.ex:317
+ #: lib/block_scout_web/views/tokens/overview_view.ex:37
+ msgid "Read Contract"
+ msgstr ""
+@@ -1859,7 +1859,7 @@ msgstr ""
+ #: lib/block_scout_web/templates/address/_tabs.html.eex:14
+ #: lib/block_scout_web/templates/address_token/index.html.eex:8
+ #: lib/block_scout_web/templates/address_token_transfer/index.html.eex:11
+-#: lib/block_scout_web/views/address_view.ex:305
++#: lib/block_scout_web/views/address_view.ex:311
+ msgid "Tokens"
+ msgstr ""
+ 
+@@ -1871,6 +1871,6 @@ msgstr ""
+ #: lib/block_scout_web/templates/block_transaction/index.html.eex:18
+ #: lib/block_scout_web/templates/chain/show.html.eex:140
+ #: lib/block_scout_web/templates/layout/_topnav.html.eex:50
+-#: lib/block_scout_web/views/address_view.ex:306
++#: lib/block_scout_web/views/address_view.ex:312
+ msgid "Transactions"
+ msgstr ""
+diff --git a/apps/block_scout_web/test/block_scout_web/views/address_view_test.exs b/apps/block_scout_web/test/block_scout_web/views/address_view_test.exs
+index 417e51a6f5..4bf72f4c8a 100644
+--- a/apps/block_scout_web/test/block_scout_web/views/address_view_test.exs
++++ b/apps/block_scout_web/test/block_scout_web/views/address_view_test.exs
+@@ -143,6 +143,26 @@ defmodule BlockScoutWeb.AddressViewTest do
+     end
+   end
+ 
++  describe "balance_percentage_enabled/1" do
++    test "with non_zero market cap" do
++      Application.put_env(:block_scout_web, :show_percentage, true)
++
++      assert AddressView.balance_percentage_enabled?(100_500) == true
++    end
++
++    test "with zero market cap" do
++      Application.put_env(:block_scout_web, :show_percentage, true)
++
++      assert AddressView.balance_percentage_enabled?(0) == false
++    end
++
++    test "with switched off show_percentage" do
++      Application.put_env(:block_scout_web, :show_percentage, false)
++
++      assert AddressView.balance_percentage_enabled?(100_501) == false
++    end
++  end
++
+   test "balance_percentage/1" do
+     Application.put_env(:explorer, :supply, Explorer.Chain.Supply.ProofOfAuthority)
+     address = insert(:address, fetched_coin_balance: 2_524_608_000_000_000_000_000_000)

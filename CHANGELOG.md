@@ -3,6 +3,7 @@
 ### Features
 
 ### Fixes
+- [#3044](https://github.com/poanetwork/blockscout/pull/3044) - Prevent division by zero on /accounts page
 - [#2944](https://github.com/poanetwork/blockscout/pull/2944) - Split js logic into multiple files
 
 ### Chore
